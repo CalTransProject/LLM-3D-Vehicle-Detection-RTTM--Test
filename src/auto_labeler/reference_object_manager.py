@@ -1,77 +1,47 @@
-
-"""Tests for saving and loading reference-object annotations."""
+"""Save and load reference-object annotations as JSON."""
 
 import json
-import tempfile
-import unittest
 from pathlib import Path
+from typing import Iterable
 
-from src.auto_labeler.reference_object import BoundingBox, ReferenceObject
-from src.auto_labeler.reference_object_manager import ReferenceObjectManager
+from .reference_object import BoundingBox, ReferenceObject
 
 
-class TestReferenceObjectManager(unittest.TestCase):
-    def setUp(self):
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.file_path = Path(self.temp_dir.name) / "reference_objects.json"
-        self.manager = ReferenceObjectManager(str(self.file_path))
+class ReferenceObjectManager:
+    """Manage reference objects saved across dataset frames."""
 
-        self.objects = [
-            ReferenceObject(
-                frame_id="frame_001",
-                bbox=BoundingBox(10, 20, 40, 50),
-            ),
-            ReferenceObject(
-                frame_id="frame_002",
-                bbox=BoundingBox(10, 20, 40, 50),
-            ),
-        ]
+    def __init__(self, file_path: str = "data/reference_objects.json"):
+        self.file_path = Path(file_path)
 
-    def tearDown(self):
-        self.temp_dir.cleanup()
+    def save(self, objects: Iterable[ReferenceObject]) -> None:
+        """Save reference objects to JSON."""
+        self.file_path.parent.mkdir(parents=True, exist_ok=True)
 
-    def test_save_creates_json_file(self):
-        self.manager.save(self.objects)
+        with self.file_path.open("w", encoding="utf-8") as file:
+            json.dump([obj.to_dict() for obj in objects], file, indent=2)
 
-        self.assertTrue(self.file_path.exists())
+    def load(self) -> list[ReferenceObject]:
+        """Load saved reference objects."""
+        if not self.file_path.exists():
+            return []
 
-        with self.file_path.open(encoding="utf-8") as file:
+        with self.file_path.open("r", encoding="utf-8") as file:
             data = json.load(file)
 
-        self.assertEqual(len(data), 2)
-        self.assertEqual(data[0]["frame_id"], "frame_001")
-        self.assertEqual(data[1]["frame_id"], "frame_002")
+        return [
+            ReferenceObject(
+                frame_id=item["frame_id"],
+                bbox=BoundingBox(**item["bbox"]),
+                class_name=item.get("class_name", "Reference Object"),
+                color=item.get("color", "#FFD700"),
+            )
+            for item in data
+        ]
 
-    def test_load_returns_saved_objects(self):
-        self.manager.save(self.objects)
-
-        loaded = self.manager.load()
-
-        self.assertEqual(len(loaded), 2)
-        self.assertEqual(
-            [obj.frame_id for obj in loaded],
-            ["frame_001", "frame_002"],
-        )
-
-        for obj in loaded:
-            self.assertEqual(obj.bbox.x, 10)
-            self.assertEqual(obj.bbox.y, 20)
-            self.assertEqual(obj.bbox.width, 40)
-            self.assertEqual(obj.bbox.height, 50)
-
-    def test_load_returns_empty_list_when_file_missing(self):
-        self.assertEqual(self.manager.load(), [])
-
-    def test_save_overwrites_previous_annotations(self):
-        self.manager.save(self.objects)
-        self.manager.save([self.objects[0]])
-
-        loaded = self.manager.load()
-
-        self.assertEqual(len(loaded), 1)
-        self.assertEqual(loaded[0].frame_id, "frame_001")
-
-
-if __name__ == "__main__":
-    unittest.main()
+    def remove_all(self) -> int:
+        """Remove all saved reference objects."""
+        objects = self.load()
+        count = len(objects)
+        self.save([])
+        return count
 
