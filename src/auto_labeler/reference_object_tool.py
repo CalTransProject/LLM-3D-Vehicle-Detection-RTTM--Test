@@ -2,7 +2,7 @@
 """Interactive reference-object bounding box tool."""
 
 from dataclasses import asdict, dataclass
-from typing import Dict, Optional, Tuple
+from typing import Dict, Iterable, Optional, Tuple
 
 REFERENCE_OBJECT_CLASS = "Reference Object"
 REFERENCE_OBJECT_COLOR = "#FFD700"
@@ -50,20 +50,14 @@ class ReferenceObject:
 
 
 class ReferenceObjectTool:
-    """Manage one reference-object box using frame coordinates.
-
-    Call start_drag(), update_drag(), and finish_drag() from
-    your interface's mouse event handlers.
-    """
+    """Draw and manage a reference-object bounding box."""
 
     def __init__(self) -> None:
         self.reference_object: Optional[ReferenceObject] = None
         self._drag_start: Optional[Tuple[float, float]] = None
 
-    def start_drag(
-        self, frame_id: str, x: float, y: float
-    ) -> None:
-        """Begin drawing a new box at the mouse position."""
+    def start_drag(self, frame_id: str, x: float, y: float) -> None:
+        """Begin drawing a new box."""
         self._drag_start = (x, y)
         self.reference_object = ReferenceObject(
             frame_id=frame_id,
@@ -71,21 +65,22 @@ class ReferenceObjectTool:
         )
 
     def update_drag(self, x: float, y: float) -> None:
-        """Update the box while the mouse is moving."""
+        """Update the box while dragging."""
         if self._drag_start is None or self.reference_object is None:
             return
 
         start_x, start_y = self._drag_start
-        left, top = min(start_x, x), min(start_y, y)
-        width, height = abs(x - start_x), abs(y - start_y)
+        left = min(start_x, x)
+        top = min(start_y, y)
+        width = max(abs(x - start_x), 1)
+        height = max(abs(y - start_y), 1)
 
-        # Keep dimensions positive while the user is dragging.
         self.reference_object.bbox = BoundingBox(
-            left, top, max(width, 1), max(height, 1)
+            left, top, width, height
         )
 
     def finish_drag(self, x: float, y: float) -> None:
-        """Finish drawing the box and validate its final dimensions."""
+        """Finish drawing the box."""
         if self._drag_start is None:
             return
 
@@ -93,14 +88,14 @@ class ReferenceObjectTool:
         self._drag_start = None
 
     def resize(self, width: float, height: float) -> None:
-        """Set the box size while keeping its top-left position."""
+        """Resize the current box."""
         if self.reference_object is None:
             raise ValueError("Create a reference box first.")
 
         self.reference_object.bbox.resize(width, height)
 
     def remove(self, x: float, y: float) -> bool:
-        """Remove the box when the user clicks inside it."""
+        """Remove the box if the click falls inside it."""
         obj = self.reference_object
         if obj is None:
             return False
@@ -116,8 +111,20 @@ class ReferenceObjectTool:
 
         return False
 
+    def apply_to_frames(self, applier, frame_ids: Iterable[str]):
+        """Apply the current box to all supplied frames."""
+        if self.reference_object is None:
+            raise ValueError("Create a reference box first.")
+
+        return applier.apply_to_frames(
+            self.reference_object,
+            frame_ids,
+        )
+
     def to_dict(self) -> Optional[Dict]:
-        """Return the current box data, or None if no box exists."""
+        """Return the current box data."""
         if self.reference_object is None:
             return None
+
         return self.reference_object.to_dict()
+
