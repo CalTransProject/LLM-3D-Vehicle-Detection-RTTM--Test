@@ -1,3 +1,4 @@
+
 """Coordinate reference-object creation, application, and persistence."""
 
 from typing import Iterable
@@ -40,3 +41,44 @@ class ReferenceObjectWorkflow:
     def load_saved_objects(self):
         """Return reference objects saved in the JSON file."""
         return self.manager.load()
+
+    def remove_reference_object(self, x: float, y: float) -> bool:
+        """Remove the clicked reference object from memory and saved frames."""
+        current = self.tool.to_dict()
+        if current is None:
+            return False
+
+        bbox = current.get("bbox", {})
+        x1 = bbox.get("x1")
+        y1 = bbox.get("y1")
+        x2 = bbox.get("x2")
+        y2 = bbox.get("y2")
+
+        if None in (x1, y1, x2, y2):
+            return False
+
+        left, right = sorted((x1, x2))
+        top, bottom = sorted((y1, y2))
+
+        if not (left <= x <= right and top <= y <= bottom):
+            return False
+
+        removed = self.tool.remove(x, y)
+        if not removed:
+            return False
+
+        saved_objects = self.manager.load()
+        remaining = [
+            obj for obj in saved_objects
+            if not (
+                obj.class_name == current.get("class_name", "Reference Object")
+                and obj.color == current.get("color", "#FFD700")
+                and obj.bbox.x1 == x1
+                and obj.bbox.y1 == y1
+                and obj.bbox.x2 == x2
+                and obj.bbox.y2 == y2
+            )
+        ]
+
+        self.manager.save(remaining)
+        return True
