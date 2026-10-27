@@ -1,5 +1,5 @@
 
-"""Tkinter UI for applying a reference object across frames."""
+"""Tkinter UI for applying and removing a reference object across frames."""
 
 import tkinter as tk
 from tkinter import messagebox
@@ -68,11 +68,41 @@ class ReferenceObjectUI:
 
         tk.Label(
             self.root,
-            text="Drag on the canvas to draw a reference bounding box.",
+            text=(
+                "Drag to draw a reference box. "
+                "Click inside the box to remove it from all applied frames."
+            ),
         ).pack(pady=(0, 10))
 
     def _start_box(self, event):
-        """Begin drawing a box on the canvas."""
+        """Remove the existing box when clicked, or start drawing a new one."""
+        if self.rectangle_id is not None:
+            coords = self.canvas.coords(self.rectangle_id)
+
+            if len(coords) == 4:
+                left, top, right, bottom = coords
+                left, right = sorted((left, right))
+                top, bottom = sorted((top, bottom))
+
+                if left <= event.x <= right and top <= event.y <= bottom:
+                    try:
+                        removed = self.workflow.remove_reference_object(
+                            event.x, event.y
+                        )
+                    except (ValueError, OSError, TypeError, AttributeError) as error:
+                        messagebox.showerror("Remove failed", str(error))
+                        return
+
+                    if removed:
+                        self.canvas.delete(self.rectangle_id)
+                        self.rectangle_id = None
+                        self.drag_start = None
+                        messagebox.showinfo(
+                            "Reference object removed",
+                            "The reference object was removed from its applied frames.",
+                        )
+                        return
+
         frame_id = self.frame_id.get().strip()
         if not frame_id:
             messagebox.showerror("Missing frame", "Enter a frame ID.")
@@ -142,7 +172,7 @@ class ReferenceObjectUI:
         messagebox.showinfo(
             "Reference object applied",
             f"Applied the reference object to {len(processed)} frames.\n"
-            f"Saved annotations to the configured JSON file.",
+            "Saved annotations to the configured JSON file.",
         )
 
 
@@ -155,3 +185,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
