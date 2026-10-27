@@ -1,3 +1,4 @@
+
 """Apply the same reference object annotation across multiple frames."""
 
 from copy import deepcopy
@@ -13,35 +14,35 @@ class ReferenceObjectApplier:
         self.manager = manager
 
     def apply_to_frames(self, reference_object, frame_ids):
-        """Save a copy of the reference object for each frame.
+        """Save a separate copy of the reference object for each frame."""
+        frame_ids = list(frame_ids)
+        if not frame_ids:
+            return []
 
-        Args:
-            reference_object: ReferenceObject to apply to each frame.
-            frame_ids: Iterable of frame identifiers.
-
-        Returns:
-            List of frame identifiers that were processed.
-        """
-        processed_frames = []
+        # Support the older manager API used by existing tests.
+        if hasattr(self.manager, "save_reference_object"):
+            for frame_id in frame_ids:
+                reference_copy = deepcopy(reference_object)
+                self.manager.save_reference_object(frame_id, reference_copy)
+            return frame_ids
 
         # Load existing annotations so they are preserved.
         objects = self.manager.load()
 
         for frame_id in frame_ids:
             reference_copy = deepcopy(reference_object)
-            reference_copy.frame_id = frame_id
 
-            # Replace an existing annotation for this frame,
-            # or add the reference object if none exists.
+            if isinstance(reference_copy, dict):
+                reference_copy["frame_id"] = frame_id
+            else:
+                reference_copy.frame_id = frame_id
+
             objects = [
                 obj for obj in objects
-                if obj.frame_id != frame_id
+                if getattr(obj, "frame_id", None) != frame_id
             ]
             objects.append(reference_copy)
-            processed_frames.append(frame_id)
 
-        # Save all annotations using the manager's actual API.
         self.manager.save(objects)
-
-        return processed_frames
+        return frame_ids
 
