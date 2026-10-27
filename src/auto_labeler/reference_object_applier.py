@@ -1,4 +1,3 @@
-
 """Apply the same reference object annotation across multiple frames."""
 
 from copy import deepcopy
